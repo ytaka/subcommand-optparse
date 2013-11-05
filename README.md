@@ -1,12 +1,12 @@
 # Subcommand::Optparse
 
-TODO: Write a gem description
+Option parser for a command with subcommands, which is parsed by library 'optparse'
 
 ## Installation
 
 Add this line to your application's Gemfile:
 
-    gem 'subcommand-optparse'
+    gem 'subcommand_optparse'
 
 And then execute:
 
@@ -18,7 +18,7 @@ Or install it yourself as:
 
 ## Usage
 
-TODO: Write usage instructions here
+Please see the files in the directory 'examples'
 
 ## Contributing
 
