@@ -32,18 +32,18 @@ class SubCmdOptParser
   alias set_summary_width summary_width=
   alias set_summary_indent summary_indent=
 
-  # @overload initialize(banner = nil, width = 32, indent = ' ' * 4, opts = {})
-  #  @param [String,nil] banner Banne of help
+  # @overload initialize(width = 32, indent = ' ' * 4, opts = {})
   #  @param [Fixnum] width Width of summary
   #  @param [String] indent Indent of summary
   #  @param [Hash] opts Options hash
-  #  @option opts [boolean] :help_command If the value is false then subcommand help is not set automatically
-  #  @option opts [boolean] :accept_undefined_command If the value is false then show help for undefined commands
+  #  @option opts [boolean] :help_command
+  #      If the value is false then subcommand help is not set automatically. Default is true
+  #  @option opts [boolean] :accept_undefined_command
+  #      If the value is false then show help for undefined commands. Default is false
   #  @yield [sc]
   #  @yieldparam [SubCmdOptParser] sc Option parser
   def initialize(*args, &block)
     opts = args.extract_options!
-    @banner_help = args.shift
     @summary_width = args[0] || 32
     @summary_indent = args[1] ||  ' ' * 4
     @global_option_setting = nil
@@ -74,6 +74,9 @@ class SubCmdOptParser
   #  @yield [opt]
   #  @yieldparam [OptionParserForSubCmd] opt Option parser for the subcommand
   def subcommand(name, *args, &block)
+    if subcommand_defined?(name)
+      raise ArgumentError, "Command '#{name}' has been already defined"
+    end
     opts = args.extract_options!
     description = args.shift
     if args.size > 0
@@ -82,6 +85,12 @@ class SubCmdOptParser
     h = { :description => description, :setting => block }
     h[:load_global_options] = !(opts.has_key?(:load_global_options) && !opts[:load_global_options])
     @subcommand << [name, h]
+  end
+
+  def subcommand_clear(name)
+    @subcommand.delete_if do |subcmd, data|
+      subcmd == name
+    end
   end
 
   def get_subcmd_data(subcmd)
@@ -118,12 +127,7 @@ class SubCmdOptParser
   private :message_list_subcommands
 
   def get_banner_help(opt)
-    if @banner_help
-      banner_string = @banner_help
-    else
-      banner_string = "Usage: #{opt.program_name} <command> [options]"
-    end
-    banner_string + "\n\n" + message_list_subcommands
+    "Usage: #{opt.program_name} <command> [options]\n\n" + message_list_subcommands
   end
   private :get_banner_help
 
@@ -143,13 +147,22 @@ class SubCmdOptParser
       subcmd = nil
       unless @accept_undefined_command
         subcmd = "help"
-        subcmd_data = get_subcmd_data(subcmd)
+        unless subcmd_data = get_subcmd_data(subcmd)
+          raise "Unknown command #{subcmd.inspect}"
+        end
       end
     end
     opt = get_option_parser(subcmd, subcmd_data)
     opt.parse!(argv)
 
-    if @help_subcommand_use_p && subcmd == "help"
+    if subcmd == "help" && subcmd_data
+      if !argv.empty?
+        if !subcommand_defined?(argv[0])
+          puts "Unknown command: #{argv[0].inspect}"
+        else
+          opt = get_option_parser(argv[0], get_subcmd_data(argv[0]))
+        end
+      end
       print opt.to_s
       exit
     end
