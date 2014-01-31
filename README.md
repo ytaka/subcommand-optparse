@@ -1,4 +1,4 @@
-# Subcommand::Optparse
+# subcommand-optparse
 
 Option parser for a command with subcommands, which is parsed by library 'optparse'
 
@@ -18,7 +18,11 @@ Or install it yourself as:
 
 ## Usage
 
-Please see the files in the directory 'examples'
+For now, please see the files in the directory 'examples' and source codes.
+
+## License
+
+GPLv3
 
 ## Contributing
 
