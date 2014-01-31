@@ -28,6 +28,8 @@ class SubCmdOptParser
   attr_accessor :program_name
   attr_accessor :summary_width
   attr_accessor :summary_indent
+  attr_accessor :version
+  attr_accessor :release
   alias set_program_name program_name=
   alias set_summary_width summary_width=
   alias set_summary_indent summary_indent=
@@ -37,9 +39,13 @@ class SubCmdOptParser
   #  @param [String] indent Indent of summary
   #  @param [Hash] opts Options hash
   #  @option opts [boolean] :help_command
-  #      If the value is false then subcommand help is not set automatically. Default is true
+  #      If the value is false then command "help" is not set automatically. Default is true
+  #  @option opts [boolean] :version_command
+  #      If the value is false then command "version" is not set automatically. Default is true
   #  @option opts [boolean] :accept_undefined_command
   #      If the value is false then show help for undefined commands. Default is false
+  #  @option opts [boolean] :parse_only
+  #      Commands (help and version) do not exit with printing messages and just parse options
   #  @yield [sc]
   #  @yieldparam [SubCmdOptParser] sc Option parser
   def initialize(*args, &block)
@@ -49,7 +55,9 @@ class SubCmdOptParser
     @global_option_setting = nil
     @subcommand = []
     @help_subcommand_use_p = (!opts.has_key?(:help_command) || opts[:help_command])
+    @version_subcommand_use_p = (!opts.has_key?(:version_command) || opts[:version_command])
     @accept_undefined_command = opts[:accept_undefined_command]
+    @parse_only = opts[:parse_only]
     if block_given?
       yield(self)
     end
@@ -106,6 +114,8 @@ class SubCmdOptParser
     desc = subcmd_data && subcmd_data[:description]
     opt = OptionParserForSubCmd.new(subcmd, desc, @summary_width, @summary_indent)
     opt.program_name = program_name if @program_name
+    opt.version = version if @version
+    opt.release = release if @release
     subcmd_data[:setting].call(opt) if subcmd_data && subcmd_data[:setting]
     if @global_option_setting && (!subcmd_data || subcmd_data[:load_global_options])
       @global_option_setting.call(opt)
@@ -131,7 +141,7 @@ class SubCmdOptParser
   end
   private :get_banner_help
 
-  def parse!(argv = ARGV)
+  def define_prepared_command
     if @help_subcommand_use_p
       unless subcommand_defined?("help")
         subcommand("help", "Show help message", :load_global_options => false) do |opt|
@@ -139,7 +149,38 @@ class SubCmdOptParser
         end
       end
     end
+    if @version_subcommand_use_p
+      unless subcommand_defined?("version")
+        subcommand("version", "Show version", :load_global_options => false)
+      end
+    end
+  end
+  private :define_prepared_command
 
+  def exec_prepared_command(opt, argv)
+    unless @parse_only
+      case opt.subcommand_name
+      when "help"
+        if !argv.empty?
+          if !subcommand_defined?(argv[0])
+            puts "Unknown command: #{argv[0].inspect}"
+          else
+            opt = get_option_parser(argv[0], get_subcmd_data(argv[0]))
+          end
+        end
+        print opt.to_s
+        return true
+      when "version"
+        puts opt.ver || "Unknown version"
+        return true
+      end
+    end
+    nil
+  end
+  private :exec_prepared_command
+
+  def parse!(argv = ARGV)
+    define_prepared_command
     subcmd = argv[0]
     if subcmd_data = get_subcmd_data(subcmd)
       argv.shift
@@ -153,20 +194,10 @@ class SubCmdOptParser
       end
     end
     opt = get_option_parser(subcmd, subcmd_data)
-    opt.parse!(argv)
-
-    if subcmd == "help" && subcmd_data
-      if !argv.empty?
-        if !subcommand_defined?(argv[0])
-          puts "Unknown command: #{argv[0].inspect}"
-        else
-          opt = get_option_parser(argv[0], get_subcmd_data(argv[0]))
-        end
-      end
-      print opt.to_s
-      exit
+    if exec_prepared_command(opt, argv)
+      exit(0)
     end
-
+    opt.parse!(argv)
     subcmd
   end
 end
