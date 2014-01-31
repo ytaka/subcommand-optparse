@@ -6,25 +6,66 @@ class SubCmdOptParser
   class OptionParserForSubCmd < OptionParser
     attr_accessor :subcommand_name
     attr_accessor :description
+    attr_accessor :summary
+    attr_writer :usage
+    attr_writer :example
 
     def initialize(subcmd, description, width, indent)
       @subcommand_name = subcmd
       @description = description
+      @summary = nil
       super(nil, width, indent)
+    end
+
+    def usage
+      usage_str = "Usage: "
+      if @usage
+        @usage.each_line.with_index do |line, ind|
+          usage_str << "       " if ind > 0
+          usage_str << line.sub(/\n?\z/, "\n")
+        end
+      else
+        usage_str << "#{program_name} #{@subcommand_name || '<command>'} [options]\n"
+      end
+      usage_str
     end
 
     def banner
       unless @banner
-        @banner = "Usage: #{program_name} #{@subcommand_name || '<command>'} [options]"
-        if @description
-          @banner << "\n\n#{@description}"
+        @banner = usage
+        if @summary
+          @banner << "\n#{@summary.sub(/\n?\z/, "\n")}"
+        elsif @description
+          @banner << "\n#{@description.sub(/\n?\z/, "\n")}"
         end
-        visit(:add_banner, @banner)
+        if @example
+          if @example.each_line.count == 1
+            @banner << "\nExample: #{@example.strip}"
+          else
+            @banner << "\nExamples:\n"
+            @example.each_line do |line|
+              @banner << "    #{line.sub(/\n?\z/, "\n")}"
+            end
+          end
+        end
       end
       @banner
     end
+
+    def help
+      str_banner = "#{banner}".sub(/\n?\z/, "\n")
+      str_summary =  summarize("")
+      if str_summary.size > 0
+        str_banner << "\nOptions:\n"
+      end
+      str_banner + str_summary
+    end
+
+    alias_method :to_s, :help
   end
 
+  # summary is shows in help message
+  attr_accessor :summary
   attr_accessor :program_name
   attr_accessor :summary_width
   attr_accessor :summary_indent
@@ -55,6 +96,7 @@ class SubCmdOptParser
     @global_option_setting = nil
     @subcommand = []
     @help_subcommand_use_p = (!opts.has_key?(:help_command) || opts[:help_command])
+    @summary = nil
     @version_subcommand_use_p = (!opts.has_key?(:version_command) || opts[:version_command])
     @accept_undefined_command = opts[:accept_undefined_command]
     @parse_only = opts[:parse_only]
@@ -125,7 +167,7 @@ class SubCmdOptParser
   private :get_option_parser
 
   def message_list_subcommands
-    mes = "Commands are:\n"
+    mes = "Commands:\n"
     max_size_subcmd = (@subcommand.map { |name, val| name.size }).max
     str_size = (max_size_subcmd.even? ? max_size_subcmd : max_size_subcmd + 1) + 4
     @subcommand.each do |name, val|
@@ -137,7 +179,12 @@ class SubCmdOptParser
   private :message_list_subcommands
 
   def get_banner_help(opt)
-    "Usage: #{opt.program_name} <command> [options]\n\n" + message_list_subcommands
+    mes = "Usage: #{opt.program_name} <command> [options]\n\n"
+    if @summary
+      mes << @summary << "\n\n"
+    end
+    mes << message_list_subcommands
+    mes
   end
   private :get_banner_help
 
